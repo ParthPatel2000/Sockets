@@ -5,13 +5,13 @@ CXX := g++
 CXXFLAGS := -std=c++11 -Wall -Wextra
 
 # Include directories
-INCLUDES := -I/usr/include/mysql
+# INCLUDES := -I/usr/include/boost/thread
 
-# Library directories
-LIBDIRS := -L/usr/lib/mysql
+# # Library directories
+# LIBDIRS := -L/usr/lib/boost
 
-# Libraries
-LIBS := -lmysqlclient -lssl -lcrypto -lboost_system -lboost_thread 
+# # Libraries
+# LIBS := -lboost_system -lboost_thread 
 
 # Source files
 SRCS := $(wildcard *.cpp)

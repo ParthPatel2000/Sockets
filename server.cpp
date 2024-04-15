@@ -1,50 +1,63 @@
 #include <iostream>
-#include <boost/asio.hpp> // Include the Boost.Asio library
 #include <vector>
-#include <memory>
+#include <memory> // Include for std::shared_ptr
+#include <boost/asio.hpp>
 
-using boost::asio::ip::tcp; // Define the IP version to use
-using std::string;
-using std::vector;
+using boost::asio::ip::tcp;
+
+void startAccept(tcp::acceptor &acceptor, std::vector<std::shared_ptr<tcp::socket>> &clientSockets)
+{
+    std::cout << "Waiting for client to connect...\n";
+    auto newSocket = std::make_shared<tcp::socket>(acceptor.get_executor());
+
+    acceptor.async_accept(*newSocket, [&](const boost::system::error_code &error)
+                          {
+        if (!error) {
+            std::cout << "Client connected: " << newSocket->remote_endpoint() << std::endl;
+            clientSockets.push_back(std::move(newSocket));
+        } else {
+            std::cerr << "Error accepting connection: " << error.message() << std::endl;
+        }
+
+        startAccept(acceptor, clientSockets); });
+}
 
 int main()
 {
-    // vector<std::shared_ptr<tcp::socket>> clients; // Create a vector to store the clients
-    vector<tcp::socket *> clients; // Create a vector to store the clients
-
-    boost::asio::io_service io;                                  // Create an I/O service
-    tcp::acceptor acceptor(io, tcp::endpoint(tcp::v4(), 50000)); // Create an acceptor to listen for new connections
-
-    while (clients.size() < 2)
+    try
     {
-        tcp::socket *socket = new tcp::socket(io);
-        acceptor.accept(*socket);
+        boost::asio::io_context io;
+        tcp::acceptor acceptor(io, tcp::endpoint(tcp::v4(), 50000));
+        std::vector<std::shared_ptr<tcp::socket>> clientSockets;
 
-        std::cout << "Client connected: " << socket->remote_endpoint().address() << std::endl;
+        startAccept(acceptor, clientSockets);
+        io.run();
 
-        // Create a new client object and store it
-        // auto client = std::make_shared<tcp::socket>(std::move(socket));
-        // clients.push_back(client);
-
-        // auto client = std::make_shared<tcp::socket>(std::move(socket));
-        clients.push_back(socket);
-        std::cout << "Error before here " << std::endl;
-
-        // Handle client connection here
-
-        // No need to close the socket here
-        // The client object will manage its own socket lifecycle
-
-        // std::cout<<"socket is "<<(socket->is_open()? "open" : "closed")<<std::endl;
-    }
-
-    while(true)
-    {
-        for(auto client : clients)
+        while(1)
         {
-            std::cout<<"socket is "<<(client->is_open()? "open" : "closed")<<std::endl;
+            std::cout<<"clientSockets.size() = "<<clientSockets.size()<<"\n";
+            while (clientSockets.size() > 0)
+            {
+                std::string message = "Hello, client!\n";
+                for (auto &socket : clientSockets)
+                {
+                    boost::asio::write(*socket, boost::asio::buffer(message));
+                    std::cout << "Sent message to client: " << socket->remote_endpoint() << std::endl;
+
+                    boost::asio::streambuf buffer;
+                    boost::asio::read_until(*socket, buffer, '\n');
+                    std::string receivedMessage(boost::asio::buffer_cast<const char *>(buffer.data()), buffer.size());
+                    std::cout << "Received message from client: " << receivedMessage << std::endl;
+                }
+                sleep(1);
+            }
             sleep(1);
         }
+        
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "Error: " << e.what() << std::endl;
     }
 
     return 0;

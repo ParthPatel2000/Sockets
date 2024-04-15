@@ -1,38 +1,44 @@
 #include <iostream>
 #include <boost/asio.hpp>
+#include <chrono>
+#include <thread>
 
 using boost::asio::ip::tcp;
 
 int main() {
-    boost::asio::io_service io_service;
-    tcp::socket socket(io_service);
-    tcp::resolver resolver(io_service);
 
+    std::string name;
+    std::cout << "Enter your name: ";
+    std::cin >> name;
     try {
-        boost::asio::connect(socket, resolver.resolve({"localhost", "50000"}));
+        boost::asio::io_context io;
+        tcp::socket socket(io);
 
-        // Send data or perform other operations with the connected server
-
-        // Check if the connection is still open
-        while (socket.is_open()) {
-            // Perform some I/O operation, like reading or writing
-            // For example, try reading some data from the socket
-            char data[1024];
-            size_t length = socket.read_some(boost::asio::buffer(data, sizeof(data)));
-
-            // Handle the received data or perform other actions
-            std::cout << "Received data from server: " << std::string(data, length) << std::endl;
+        // Retry connecting to the server until successful
+        while (true) {
+            try {
+                socket.connect(tcp::endpoint(boost::asio::ip::address::from_string("127.0.0.1"), 50000));
+                std::cout << "Connected to server" << std::endl;
+                break; // Exit the retry loop if connection successful
+            } catch (const std::exception& e) {
+                std::cerr << "Error connecting to server: " << e.what() << std::endl;
+                std::cout << "Retrying in 1 second..." << std::endl;
+                std::this_thread::sleep_for(std::chrono::seconds(1)); // Wait for 1 second before retrying
+            }
         }
 
-        // The connection has been closed by the remote endpoint
-        std::cout << "Connection closed by server" << std::endl;
-    } catch (const boost::system::system_error& e) {
-        if (e.code() == boost::asio::error::eof) {
-            // Connection closed by the remote endpoint
-            std::cout << "Connection closed by server" << std::endl;
-        } else {
-            // Other error occurred
-            std::cerr << "Error: " << e.what() << std::endl;
+        while (true) {
+            // Read message from the server
+            boost::asio::streambuf buffer;
+            boost::asio::read_until(socket, buffer, '\n');
+            std::string message(boost::asio::buffer_cast<const char*>(buffer.data()), buffer.size());
+            std::cout << "Received message from server: " << message << std::endl;
+
+            if (message == "Hello, client!\n") {
+                std::string response = "Hello, server I'm !"+name+"\n";
+                boost::asio::write(socket, boost::asio::buffer(response));
+                std::cout << "Sent message to server: " << response << std::endl;
+            }
         }
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
