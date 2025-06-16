@@ -13,7 +13,7 @@ int main() {
     try {
         boost::asio::io_context io;
         tcp::socket socket(io);
-
+        
         // Retry connecting to the server until successful
         while (true) {
             try {
